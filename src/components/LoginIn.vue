@@ -6,12 +6,9 @@
 </template>
 
 <script setup>
-const clientId = 'YOUR_SPOTIFY_CLIENT_ID' // Replace this
-const redirectUri = 'https://dessertmood.netlify.app/' // Replace with your deployed Netlify URI
-const scopes = [
-  'user-read-private',
-  'user-read-email'
-]
+const clientId = '1602280b57844a7fafc1834758087c42' // Replace this
+const redirectUri = 'https://dessertmood.netlify.app/callback' // Replace with your deployed Netlify URI
+const scopes = ['user-read-private', 'user-read-email']
 
 function loginWithSpotify() {
   const authUrl = `https://accounts.spotify.com/authorize?client_id=${clientId}&response_type=token&redirect_uri=${encodeURIComponent(redirectUri)}&scope=${encodeURIComponent(scopes.join(' '))}`
@@ -21,7 +18,7 @@ function loginWithSpotify() {
 
 <style scoped>
 button {
-  background-color: #1DB954;
+  background-color: #1db954;
   color: white;
   padding: 12px 24px;
   font-size: 1rem;
