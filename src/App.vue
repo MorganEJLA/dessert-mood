@@ -34,6 +34,18 @@
           @update:value="moodParams.excitement = $event"
         />
       </div>
+      <div class="spotify-auth">
+        <button @click="login" v-if="!token">Login with Spotify</button>
+        <button @click="getProfile" v-if="token && !profile">Get My Spotify Profile</button>
+        <pre v-if="profile">{{ profile }}</pre>
+      </div>
+
+      <!-- Step 1: Login Button -->
+      <div class="spotify-auth">
+        <button @click="login" v-if="!token">Login with Spotify</button>
+        <button @click="getProfile" v-if="token && !profile">Get My Spotify Profile</button>
+        <pre v-if="profile">{{ profile }}</pre>
+      </div>
 
       <div class="current-mood-summary">
         <h3>Current Mood Profile:</h3>
@@ -52,21 +64,28 @@
       <p>Once you've set your mood, cosmic energies will align to suggest a dessert and a song!</p>
     </section>
   </div>
-</template>
+  <section class="spotify-auth">
+    <h2>Spotify Connection Test</h2>
+    <button v-if="!token" @click="login">Login with Spotify</button>
+    <button v-if="token" @click="getProfile">Get My Spotify Profile</button>
 
+    <div v-if="profile">
+      <h3>Spotify User Info:</h3>
+      <pre>{{ profile }}</pre>
+    </div>
+  </section>
+</template>
 <script>
-// 1. Import the MoodDial component
 import MoodDial from './components/MoodDial.vue'
 
 export default {
   name: 'App',
-  // 2. Register the MoodDial component so it can be used in the template
   components: {
     MoodDial,
   },
-  // 3. Define the reactive data for our mood parameters
   data() {
     return {
+      // 🎛 Mood Dial Values
       moodParams: {
         sweetness: 50,
         bitterness: 50,
@@ -74,34 +93,76 @@ export default {
         nostalgia: 50,
         excitement: 50,
       },
+
+      // 🎵 Spotify Auth & Data
+      token: null,
+      profile: null,
+      clientId: '1602280b57844a7fafc1834758087c42', // replace with real client ID
+      redirectUri: 'https://dessertmood.netlify.app/', // replace with your deployed Netlify URL
+      scopes: 'user-read-private user-read-email',
     }
   },
-  // We'll add methods or computed properties here later
-  // to process moodParams and generate suggestions.
+
+  created() {
+    this.checkToken()
+  },
+
+  methods: {
+    // 🚪 Trigger Spotify Login
+    login() {
+      const authUrl = `https://accounts.spotify.com/authorize?client_id=${this.clientId}&response_type=token&redirect_uri=${encodeURIComponent(this.redirectUri)}&scope=${encodeURIComponent(this.scopes)}`
+      window.location.href = authUrl
+    },
+
+    // 🕵️ Get token from URL on callback
+    checkToken() {
+      const hash = window.location.hash.substring(1)
+      const params = new URLSearchParams(hash)
+      const accessToken = params.get('access_token')
+      if (accessToken) {
+        this.token = accessToken
+        window.history.replaceState({}, document.title, '/') // clean the URL
+      }
+    },
+
+    // 🧠 Fetch User Profile (test if token works)
+    async getProfile() {
+      try {
+        const response = await fetch('https://api.spotify.com/v1/me', {
+          headers: {
+            Authorization: `Bearer ${this.token}`,
+          },
+        })
+        if (!response.ok) throw new Error('Failed to fetch profile')
+        this.profile = await response.json()
+      } catch (err) {
+        alert(`Error: ${err.message}`)
+      }
+    },
+  },
 }
 </script>
 
 <style>
-/* Basic Global Styles (feel free to make this more "cosmic") */
 body {
   font-family: 'Arial', sans-serif;
-  background: linear-gradient(135deg, #1a0033, #000000); /* Deep space purple to black */
-  color: #e0e0e0; /* Light grey text */
+  background: linear-gradient(135deg, #1a0033, #000000);
+  color: #e0e0e0;
   margin: 0;
   padding: 0;
   display: flex;
   justify-content: center;
-  align-items: flex-start; /* Align to top for longer content */
+  align-items: flex-start;
   min-height: 100vh;
-  overflow-x: hidden; /* Prevent horizontal scroll */
+  overflow-x: hidden;
 }
 
 #app {
   width: 100%;
-  max-width: 1200px; /* Constrain content width */
+  max-width: 1200px;
   padding: 40px 20px;
   text-align: center;
-  box-sizing: border-box; /* Include padding in width calculation */
+  box-sizing: border-box;
 }
 
 .app-header {
@@ -110,7 +171,7 @@ body {
 
 .app-header h1 {
   font-size: 3.5em;
-  color: #ffcc00; /* Gold/star-like color */
+  color: #ffcc00;
   text-shadow: 0 0 15px rgba(255, 204, 0, 0.7);
   margin-bottom: 10px;
 }
@@ -121,39 +182,39 @@ body {
 }
 
 .mood-adjuster-section {
-  background: rgba(0, 0, 0, 0.4); /* Semi-transparent dark background */
+  background: rgba(0, 0, 0, 0.4);
   border-radius: 20px;
   padding: 30px;
   margin-bottom: 50px;
-  box-shadow: 0 0 30px rgba(255, 0, 255, 0.2); /* Pinkish glow */
+  box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
 }
 
 .mood-adjuster-section h2 {
   font-size: 2.5em;
-  color: #00ffff; /* Cyan glow */
+  color: #00ffff;
   margin-bottom: 30px;
   text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
 }
 
 .mood-dials {
   display: flex;
-  flex-wrap: wrap; /* Allow dials to wrap on smaller screens */
+  flex-wrap: wrap;
   justify-content: center;
-  gap: 30px; /* Space between dials */
+  gap: 30px;
   margin-bottom: 40px;
 }
 
 .current-mood-summary {
-  background: rgba(255, 255, 255, 0.05); /* Very subtle light background */
+  background: rgba(255, 255, 255, 0.05);
   border-radius: 10px;
   padding: 20px;
-  margin: 0 auto; /* Center the summary */
+  margin: 0 auto;
   max-width: 500px;
   border: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .current-mood-summary h3 {
-  color: #ff66ff; /* Pinkish-purple */
+  color: #ff66ff;
   font-size: 1.4em;
   margin-bottom: 15px;
 }
@@ -162,7 +223,7 @@ body {
   list-style: none;
   padding: 0;
   margin: 0;
-  display: grid; /* Use grid for a neat two-column layout if space allows */
+  display: grid;
   grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: 10px;
 }
@@ -177,12 +238,12 @@ body {
   padding: 30px;
   background: rgba(255, 255, 255, 0.03);
   border-radius: 15px;
-  box-shadow: 0 0 20px rgba(0, 255, 0, 0.1); /* Greenish glow */
+  box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
 }
 
 .suggestions-section h2 {
   font-size: 2em;
-  color: #99ff99; /* Light green */
+  color: #99ff99;
   margin-bottom: 20px;
 }
 
