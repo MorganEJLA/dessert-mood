@@ -1,242 +1,178 @@
 <template>
   <div id="app">
-    <header class="app-header">
-      <h1>Start with a flavor. End with a feeling.</h1>
-      <p class="tagline">Adjust the dials to find your perfect mood-match dessert and song.</p>
+    <header>
+      <h1>🎵 Dessert Mood & Spotify PKCE Demo</h1>
+      <button v-if="!accessToken" @click="login">Login with Spotify</button>
+      <button v-if="accessToken" @click="logout">Logout</button>
     </header>
 
-    <section class="mood-adjuster-section">
-      <h2>Adjust Your Mood</h2>
-      <div class="mood-dials">
-        <MoodDial
-          label="Sweetness"
-          :initialValue="moodParams.sweetness"
-          @update:value="moodParams.sweetness = $event"
-        />
-        <MoodDial
-          label="Bitterness"
-          :initialValue="moodParams.bitterness"
-          @update:value="moodParams.bitterness = $event"
-        />
-        <MoodDial
-          label="Warmth"
-          :initialValue="moodParams.warmth"
-          @update:value="moodParams.warmth = $event"
-        />
-        <MoodDial
-          label="Nostalgia"
-          :initialValue="moodParams.nostalgia"
-          @update:value="moodParams.nostalgia = $event"
-        />
-        <MoodDial
-          label="Excitement"
-          :initialValue="moodParams.excitement"
-          @update:value="moodParams.excitement = $event"
-        />
-      </div>
-      <div class="spotify-auth">
-        <button @click="login" v-if="!token">Login with Spotify</button>
-        <button @click="getProfile" v-if="token && !profile">Get My Spotify Profile</button>
-        <pre v-if="profile">{{ profile }}</pre>
-      </div>
-
-      <!-- Step 1: Login Button -->
-      <div class="spotify-auth">
-        <button @click="login" v-if="!token">Login with Spotify</button>
-        <button @click="getProfile" v-if="token && !profile">Get My Spotify Profile</button>
-        <pre v-if="profile">{{ profile }}</pre>
-      </div>
-
-      <div class="current-mood-summary">
-        <h3>Current Mood Profile:</h3>
-        <ul>
-          <li>Sweetness: {{ moodParams.sweetness }}</li>
-          <li>Bitterness: {{ moodParams.bitterness }}</li>
-          <li>Warmth: {{ moodParams.warmth }}</li>
-          <li>Nostalgia: {{ moodParams.nostalgia }}</li>
-          <li>Excitement: {{ moodParams.excitement }}</li>
-        </ul>
-      </div>
+    <section v-if="profile">
+      <h2>Welcome, {{ profile.display_name }}</h2>
+      <img :src="profile.images[0]?.url" alt="Profile image" width="100" />
+      <p>Email: {{ profile.email }}</p>
     </section>
 
-    <section class="suggestions-section">
-      <h2>Your Cosmic Pair</h2>
-      <p>Once you've set your mood, cosmic energies will align to suggest a dessert and a song!</p>
+    <section v-else-if="accessToken">
+      <p>Loading profile...</p>
+    </section>
+
+    <section v-else>
+      <p>Please login to connect with Spotify.</p>
     </section>
   </div>
-  <section class="spotify-auth">
-    <h2>Spotify Connection Test</h2>
-    <button v-if="!token" @click="login">Login with Spotify</button>
-    <button v-if="token" @click="getProfile">Get My Spotify Profile</button>
-
-    <div v-if="profile">
-      <h3>Spotify User Info:</h3>
-      <pre>{{ profile }}</pre>
-    </div>
-  </section>
 </template>
+
 <script>
 export default {
   data() {
     return {
-      token: null,
-      clientId: '1602280b57844a7fafc1834758087c42', // Replace with your Spotify Client ID
-      redirectUri: 'https://dessertmood.netlify.app/', // Your deployed app URL
+      clientId: '1602280b57844a7fafc1834758087c42', // Replace this with your Spotify client ID
+      redirectUri: 'https://dessertmood.netlify.app/callback', // Replace with your exact redirect URI
       scopes: 'user-read-private user-read-email',
-      moodParams: {
-        sweetness: 50,
-        bitterness: 50,
-        warmth: 50,
-        nostalgia: 50,
-        excitement: 50,
-      },
+      codeVerifier: '',
+      accessToken: null,
+      refreshToken: null,
+      profile: null,
     }
   },
-  created() {
-    this.checkToken()
+  async created() {
+    await this.handleRedirect()
   },
   methods: {
-    login() {
-      const authUrl =
-        `https://accounts.spotify.com/authorize?client_id=${this.clientId}` +
-        `&response_type=token` +
-        `&redirect_uri=${encodeURIComponent(this.redirectUri)}` +
-        `&scope=${encodeURIComponent(this.scopes)}` +
-        `&show_dialog=true`
-      window.location = authUrl
+    // Generate a random string for code verifier
+    generateCodeVerifier() {
+      const array = new Uint32Array(56)
+      window.crypto.getRandomValues(array)
+      return Array.from(array, (dec) => ('0' + dec.toString(16)).slice(-2)).join('')
     },
-    checkToken() {
-      const hash = window.location.hash.substring(1)
-      const params = new URLSearchParams(hash)
-      if (params.has('access_token')) {
-        this.token = params.get('access_token')
-        window.history.replaceState({}, document.title, '/') // Clean the URL
+
+    // Base64 URL encode
+    base64urlencode(str) {
+      return btoa(String.fromCharCode.apply(null, new Uint8Array(str)))
+        .replace(/\+/g, '-')
+        .replace(/\//g, '_')
+        .replace(/=+$/, '')
+    },
+
+    // SHA256 hash for code challenge
+    async sha256(plain) {
+      const encoder = new TextEncoder()
+      const data = encoder.encode(plain)
+      const hash = await crypto.subtle.digest('SHA-256', data)
+      return new Uint8Array(hash)
+    },
+
+    async login() {
+      this.codeVerifier = this.generateCodeVerifier()
+      localStorage.setItem('code_verifier', this.codeVerifier)
+
+      const codeChallenge = this.base64urlencode(await this.sha256(this.codeVerifier))
+
+      const authUrl = new URL('https://accounts.spotify.com/authorize')
+      authUrl.searchParams.append('response_type', 'code')
+      authUrl.searchParams.append('client_id', this.clientId)
+      authUrl.searchParams.append('scope', this.scopes)
+      authUrl.searchParams.append('redirect_uri', this.redirectUri)
+      authUrl.searchParams.append('code_challenge_method', 'S256')
+      authUrl.searchParams.append('code_challenge', codeChallenge)
+
+      window.location = authUrl.toString()
+    },
+
+    async handleRedirect() {
+      const urlParams = new URLSearchParams(window.location.search)
+      const code = urlParams.get('code')
+      if (!code) return // no code, no auth
+
+      this.codeVerifier = localStorage.getItem('code_verifier')
+      if (!this.codeVerifier) {
+        alert('No code verifier found, please login again.')
+        return
+      }
+
+      // Exchange code for tokens
+      const body = new URLSearchParams({
+        client_id: this.clientId,
+        grant_type: 'authorization_code',
+        code,
+        redirect_uri: this.redirectUri,
+        code_verifier: this.codeVerifier,
+      })
+
+      try {
+        const res = await fetch('https://accounts.spotify.com/api/token', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+          body,
+        })
+
+        if (!res.ok) throw new Error('Failed to exchange code for tokens')
+
+        const data = await res.json()
+        this.accessToken = data.access_token
+        this.refreshToken = data.refresh_token
+
+        // Clean URL removing code param
+        window.history.replaceState({}, document.title, window.location.pathname)
+
         this.getProfile()
+      } catch (error) {
+        alert(error.message)
       }
     },
+
     async getProfile() {
+      if (!this.accessToken) return
+
       try {
         const res = await fetch('https://api.spotify.com/v1/me', {
-          headers: { Authorization: `Bearer ${this.token}` },
+          headers: { Authorization: `Bearer ${this.accessToken}` },
         })
         if (!res.ok) throw new Error('Failed to fetch profile')
-        const data = await res.json()
-        console.log('Spotify profile:', data)
-        // You can save this to state and display user info
-      } catch (err) {
-        alert(err.message)
+
+        this.profile = await res.json()
+      } catch (error) {
+        alert(error.message)
       }
+    },
+
+    logout() {
+      this.accessToken = null
+      this.refreshToken = null
+      this.profile = null
+      localStorage.removeItem('code_verifier')
     },
   },
 }
 </script>
 
 <style>
-body {
-  font-family: 'Arial', sans-serif;
-  background: linear-gradient(135deg, #1a0033, #000000);
-  color: #e0e0e0;
-  margin: 0;
-  padding: 0;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: 100vh;
-  overflow-x: hidden;
-}
-
 #app {
-  width: 100%;
-  max-width: 1200px;
-  padding: 40px 20px;
   text-align: center;
-  box-sizing: border-box;
+  padding: 2rem;
+  background: linear-gradient(135deg, #1a0033, #000);
+  color: #eee;
+  min-height: 100vh;
+  font-family: Arial, sans-serif;
 }
 
-.app-header {
-  margin-bottom: 50px;
+button {
+  background: #1db954;
+  border: none;
+  padding: 1rem 2rem;
+  font-size: 1.2rem;
+  color: white;
+  border-radius: 50px;
+  cursor: pointer;
+  margin-top: 1rem;
 }
 
-.app-header h1 {
-  font-size: 3.5em;
-  color: #ffcc00;
-  text-shadow: 0 0 15px rgba(255, 204, 0, 0.7);
-  margin-bottom: 10px;
+button:hover {
+  background: #17a44d;
 }
 
-.app-header .tagline {
-  font-size: 1.2em;
-  color: #a0a0a0;
-}
-
-.mood-adjuster-section {
-  background: rgba(0, 0, 0, 0.4);
-  border-radius: 20px;
-  padding: 30px;
-  margin-bottom: 50px;
-  box-shadow: 0 0 30px rgba(255, 0, 255, 0.2);
-}
-
-.mood-adjuster-section h2 {
-  font-size: 2.5em;
-  color: #00ffff;
-  margin-bottom: 30px;
-  text-shadow: 0 0 10px rgba(0, 255, 255, 0.5);
-}
-
-.mood-dials {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: 30px;
-  margin-bottom: 40px;
-}
-
-.current-mood-summary {
-  background: rgba(255, 255, 255, 0.05);
-  border-radius: 10px;
-  padding: 20px;
-  margin: 0 auto;
-  max-width: 500px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.current-mood-summary h3 {
-  color: #ff66ff;
-  font-size: 1.4em;
-  margin-bottom: 15px;
-}
-
-.current-mood-summary ul {
-  list-style: none;
-  padding: 0;
-  margin: 0;
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: 10px;
-}
-
-.current-mood-summary li {
-  font-size: 1.1em;
-  color: #b0b0b0;
-  text-align: left;
-}
-
-.suggestions-section {
-  padding: 30px;
-  background: rgba(255, 255, 255, 0.03);
-  border-radius: 15px;
-  box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
-}
-
-.suggestions-section h2 {
-  font-size: 2em;
-  color: #99ff99;
-  margin-bottom: 20px;
-}
-
-.suggestions-section p {
-  font-style: italic;
-  color: #c0c0c0;
+img {
+  border-radius: 50%;
+  margin-top: 1rem;
 }
 </style>
