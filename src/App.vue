@@ -76,17 +76,13 @@
   </section>
 </template>
 <script>
-import MoodDial from './components/MoodDial.vue'
-import { generateCodeVerifier, generateCodeChallenge } from './auth'
-
 export default {
-  name: 'App',
-  components: {
-    MoodDial,
-  },
   data() {
     return {
-      // 🎛 Mood Dial Values
+      token: null,
+      clientId: '1602280b57844a7fafc1834758087c42', // Replace with your Spotify Client ID
+      redirectUri: 'https://dessertmood.netlify.app/', // Your deployed app URL
+      scopes: 'user-read-private user-read-email',
       moodParams: {
         sweetness: 50,
         bitterness: 50,
@@ -94,63 +90,41 @@ export default {
         nostalgia: 50,
         excitement: 50,
       },
-
-      // 🎵 Spotify Auth & Data
-      token: null,
-      profile: null,
-      clientId: '1602280b57844a7fafc1834758087c42', // replace with real client ID
-      redirectUri: 'https://dessertmood.netlify.app/', // replace with your deployed Netlify URL
-      scopes: 'user-read-private user-read-email',
     }
   },
-
   created() {
     this.checkToken()
   },
-
   methods: {
-    // 🚪 Trigger Spotify Login
-    async login() {
-      const verifier = generateCodeVerifier()
-      const challenge = await generateCodeChallenge(verifier)
-
-      localStorage.setItem('code_verifier', verifier)
-
-      const params = new URLSearchParams({
-        response_type: 'code',
-        client_id: '1602280b57844a7fafc1834758087c42',
-        scope: 'user-read-private user-read-email',
-        redirect_uri: 'https://dessertmood.netlify.app/',
-        code_challenge_method: 'S256',
-        code_challenge: challenge,
-      })
-
-      window.location = `https://accounts.spotify.com/authorize?${params.toString()}`
+    login() {
+      const authUrl =
+        `https://accounts.spotify.com/authorize?client_id=${this.clientId}` +
+        `&response_type=token` +
+        `&redirect_uri=${encodeURIComponent(this.redirectUri)}` +
+        `&scope=${encodeURIComponent(this.scopes)}` +
+        `&show_dialog=true`
+      window.location = authUrl
     },
-
-    // 🕵️ Get token from URL on callback
     checkToken() {
       const hash = window.location.hash.substring(1)
       const params = new URLSearchParams(hash)
-      const accessToken = params.get('access_token')
-      if (accessToken) {
-        this.token = accessToken
-        window.history.replaceState({}, document.title, '/') // clean the URL
+      if (params.has('access_token')) {
+        this.token = params.get('access_token')
+        window.history.replaceState({}, document.title, '/') // Clean the URL
+        this.getProfile()
       }
     },
-
-    // 🧠 Fetch User Profile (test if token works)
     async getProfile() {
       try {
-        const response = await fetch('https://api.spotify.com/v1/me', {
-          headers: {
-            Authorization: `Bearer ${this.token}`,
-          },
+        const res = await fetch('https://api.spotify.com/v1/me', {
+          headers: { Authorization: `Bearer ${this.token}` },
         })
-        if (!response.ok) throw new Error('Failed to fetch profile')
-        this.profile = await response.json()
+        if (!res.ok) throw new Error('Failed to fetch profile')
+        const data = await res.json()
+        console.log('Spotify profile:', data)
+        // You can save this to state and display user info
       } catch (err) {
-        alert(`Error: ${err.message}`)
+        alert(err.message)
       }
     },
   },
