@@ -77,6 +77,7 @@
 </template>
 <script>
 import MoodDial from './components/MoodDial.vue'
+import { generateCodeVerifier, generateCodeChallenge } from './auth'
 
 export default {
   name: 'App',
@@ -109,9 +110,22 @@ export default {
 
   methods: {
     // 🚪 Trigger Spotify Login
-    login() {
-      const authUrl = `https://accounts.spotify.com/authorize?client_id=${this.clientId}&response_type=token&redirect_uri=${encodeURIComponent(this.redirectUri)}&scope=${encodeURIComponent(this.scopes)}`
-      window.location.href = authUrl
+    async login() {
+      const verifier = generateCodeVerifier()
+      const challenge = await generateCodeChallenge(verifier)
+
+      localStorage.setItem('code_verifier', verifier)
+
+      const params = new URLSearchParams({
+        response_type: 'code',
+        client_id: '1602280b57844a7fafc1834758087c42',
+        scope: 'user-read-private user-read-email',
+        redirect_uri: 'https://dessertmood.netlify.app/callback',
+        code_challenge_method: 'S256',
+        code_challenge: challenge,
+      })
+
+      window.location = `https://accounts.spotify.com/authorize?${params.toString()}`
     },
 
     // 🕵️ Get token from URL on callback
