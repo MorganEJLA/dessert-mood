@@ -19,8 +19,8 @@ const router = createRouter({
     },
     {
       path: '/callback',
-      name: 'Callback',
-      component: () => import('@/views/SpotifyCallback.vue'),
+      name: 'CallbackPage',
+      component: () => import('@/views/CallbackPage.vue'),
     },
   ],
 })
