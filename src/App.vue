@@ -120,7 +120,7 @@ export default {
         response_type: 'code',
         client_id: '1602280b57844a7fafc1834758087c42',
         scope: 'user-read-private user-read-email',
-        redirect_uri: 'https://dessertmood.netlify.app/callback',
+        redirect_uri: 'https://dessertmood.netlify.app/',
         code_challenge_method: 'S256',
         code_challenge: challenge,
       })

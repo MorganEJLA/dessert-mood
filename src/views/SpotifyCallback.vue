@@ -18,7 +18,7 @@ export default {
       client_id: '1602280b57844a7fafc1834758087c42',
       grant_type: 'authorization_code',
       code,
-      redirect_uri: 'https://dessertmood.netlify.app/callback',
+      redirect_uri: 'https://dessertmood.netlify.app/',
       code_verifier: verifier,
     }
 
